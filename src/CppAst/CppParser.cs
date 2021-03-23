@@ -135,6 +135,8 @@ namespace CppAst
                 string rootFileName = CppAstRootFileName;
                 string rootFileContent = null;
 
+                // Creates a fake 'header.hpp' that includes all the files we passed, so they are parsed all at once
+
                 // Build the root input source file
                 var tempBuilder = new StringBuilder();
                 if (options.PreHeaderText != null)
@@ -172,7 +174,7 @@ namespace CppAst
 
                     var rootFileNameUTF8 = Marshal.StringToHGlobalAnsi(rootFileName);
 
-                    translationUnit = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray,new CXUnsavedFile[]
+                    translationUnit = CXTranslationUnit.Parse(createIndex, rootFileName, argumentsArray, new CXUnsavedFile[]
                     {
                         new CXUnsavedFile()
                         {
@@ -183,46 +185,49 @@ namespace CppAst
                         }
                     }, translationFlags);
 
-                    bool skipProcessing = false;
+                    // Skips the processing of the file if 1 error is raised
+                    // We don't want that, so remove that part
 
-                    if (translationUnit.NumDiagnostics != 0)
-                    {
-                        for (uint i = 0; i < translationUnit.NumDiagnostics; ++i)
-                        {
-                            using (var diagnostic = translationUnit.GetDiagnostic(i))
-                            {
-                                var message = GetMessageAndLocation(rootFileContent, diagnostic, out var location);
+                    //bool skipProcessing = false;
 
-                                switch (diagnostic.Severity)
-                                {
-                                    case CXDiagnosticSeverity.CXDiagnostic_Ignored:
-                                    case CXDiagnosticSeverity.CXDiagnostic_Note:
-                                        compilation.Diagnostics.Info(message, location);
-                                        break;
-                                    case CXDiagnosticSeverity.CXDiagnostic_Warning:
-                                        compilation.Diagnostics.Warning(message, location);
-                                        break;
-                                    case CXDiagnosticSeverity.CXDiagnostic_Error:
-                                    case CXDiagnosticSeverity.CXDiagnostic_Fatal:
-                                        compilation.Diagnostics.Error(message, location);
-                                        skipProcessing = true;
-                                        break;
-                                }
-                            }
-                        }
-                    }
+                    //if (translationUnit.NumDiagnostics != 0)
+                    //{
+                    //    for (uint i = 0; i < translationUnit.NumDiagnostics; ++i)
+                    //    {
+                    //        using (var diagnostic = translationUnit.GetDiagnostic(i))
+                    //        {
+                    //            var message = GetMessageAndLocation(rootFileContent, diagnostic, out var location);
 
-                    if (skipProcessing)
+                    //            switch (diagnostic.Severity)
+                    //            {
+                    //                case CXDiagnosticSeverity.CXDiagnostic_Ignored:
+                    //                case CXDiagnosticSeverity.CXDiagnostic_Note:
+                    //                    compilation.Diagnostics.Info(message, location);
+                    //                    break;
+                    //                case CXDiagnosticSeverity.CXDiagnostic_Warning:
+                    //                    compilation.Diagnostics.Warning(message, location);
+                    //                    break;
+                    //                case CXDiagnosticSeverity.CXDiagnostic_Error:
+                    //                case CXDiagnosticSeverity.CXDiagnostic_Fatal:
+                    //                    compilation.Diagnostics.Error(message, location);
+                    //                    skipProcessing = true;
+                    //                    break;
+                    //            }
+                    //        }
+                    //    }
+                    //}
+
+                    //if (skipProcessing)
+                    //{
+                    //    compilation.Diagnostics.Warning($"Compilation aborted due to one or more errors listed above.", new CppSourceLocation(rootFileName, 0, 1, 1));
+                    //}
+                    //else
+                    //{
+                    using (translationUnit)
                     {
-                        compilation.Diagnostics.Warning($"Compilation aborted due to one or more errors listed above.", new CppSourceLocation(rootFileName, 0, 1, 1));
+                        translationUnit.Cursor.VisitChildren(builder.VisitTranslationUnit, clientData: default);
                     }
-                    else
-                    {
-                        using (translationUnit)
-                        {
-                            translationUnit.Cursor.VisitChildren(builder.VisitTranslationUnit, clientData: default);
-                        }
-                    }
+                    //}
                 }
 
                 return compilation;
